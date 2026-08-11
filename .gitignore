@@ -1,0 +1,40 @@
+# Built generator binary
+/shroud
+
+# Generated implants, delivery artifacts, and build output
+/out/
+/dist/
+
+# Compiled Windows artifacts (never commit produced binaries)
+*.exe
+*.dll
+*.bin
+*.obj
+*.o
+*.a
+
+# Go test / coverage / build artifacts
+*.test
+*.out
+*.prof
+*.coverprofile
+coverage.txt
+coverage.html
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local operator state (never commit authorization markers or local config)
+.shroud_authorized
+*.local
+
+# Temporary scratch directories
+/tmp_*/

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shroud — payload generator</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>shroud</h1>
+  <span class="tag">process-injection payload generator (Go)</span>
+  <span id="authbadge" class="badge">checking…</span>
+</header>
+<nav id="tabs">
+  <button data-tab="catalog" class="active">Catalog</button>
+  <button data-tab="generate">Generate</button>
+  <button data-tab="deliver">Deliver</button>
+  <button data-tab="c2">C2</button>
+  <button data-tab="evasion">Evasion</button>
+</nav>
+
+<main>
+  <!-- Catalog -->
+  <section id="catalog" class="tab">
+    <p class="muted" id="catcount"></p>
+    <table id="cattable"><thead><tr>
+      <th>ID</th><th>Name</th><th>Category</th><th>Subtech</th><th>Status</th><th>Summary</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+
+  <!-- Generate (implant) -->
+  <section id="generate" class="tab hidden">
+    <h2>Generate implant</h2>
+    <form id="genform">
+      <label>Technique ID
+        <input name="id" list="techlist" placeholder="pe26" required>
+        <datalist id="techlist"></datalist>
+      </label>
+      <label>Format
+        <select name="format">
+          <option value="exe">exe</option>
+          <option value="dll">dll</option>
+          <option value="c">c (header)</option>
+        </select>
+      </label>
+      <label>Evasion (csv)
+        <input name="evasion" placeholder="aes,stomp,callbacks,dynamic-api,etw,amsi,unhook-kd">
+      </label>
+      <label>Shellcode file (-s)
+        <input name="shellcode" placeholder="/path/to/sc.bin (optional; demo stub if empty)">
+      </label>
+      <label>C2 backend
+        <select name="c2" id="genc2"></select>
+      </label>
+      <div id="c2flags"></div>
+      <label>Output dir
+        <input name="out" placeholder="(default out/<id>)">
+      </label>
+      <label>Sleep demo
+        <input name="sleep" placeholder="30s (needs -e sleep)">
+      </label>
+      <label>Stomp DLL
+        <input name="stomp-dll" placeholder="cfgmgr32.dll">
+      </label>
+      <label>Remote process
+        <input name="process" placeholder="explorer.exe">
+      </label>
+      <fieldset>
+        <legend>At-rest crypto keys (optional)</legend>
+        <label>AES key (hex 32B) <input name="aes-key" placeholder="random if empty"></label>
+        <label>AES IV (hex 16B) <input name="aes-iv" placeholder="random if empty"></label>
+        <label>RC4 key (hex 16B) <input name="rc4-key" placeholder="random if empty"></label>
+        <label>XOR key (hex 16B) <input name="xor-key" placeholder="random if empty"></label>
+      </fieldset>
+      <fieldset>
+        <legend>Build options</legend>
+        <label class="chk"><input type="checkbox" name="no-build"> source only (--no-build)</label>
+        <label class="chk"><input type="checkbox" name="garble"> garble -literals</label>
+        <label class="chk"><input type="checkbox" name="tiny"> garble -tiny</label>
+        <label>Packer <input name="pack" placeholder="upx (EXE only)"></label>
+      </fieldset>
+      <button type="submit">Generate</button>
+    </form>
+    <pre id="genout" class="out"></pre>
+  </section>
+
+  <!-- Deliver -->
+  <section id="deliver" class="tab hidden">
+    <h2>Deliver (delivery artifact)</h2>
+    <form id="deliverform">
+      <label>Format
+        <select name="format" id="deliverfmt"></select>
+      </label>
+      <label>Mode
+        <select name="mode" id="delivermode">
+          <option value="inline">inline (embed shellcode)</option>
+          <option value="remote">remote (--url LOLBin fetch)</option>
+        </select>
+      </label>
+      <label>Shellcode file (-s, inline only)
+        <input name="shellcode" placeholder="/path/to/sc.bin (optional; demo stub if empty)">
+      </label>
+      <label>C2 backend (inline only)
+        <select name="c2" id="deliverc2"></select>
+      </label>
+      <div id="deliverc2flags"></div>
+      <label>Remote URL (remote only)
+        <input name="url" placeholder="http://attacker/x.bin">
+      </label>
+      <label>Launcher (lnk remote)
+        <input name="launcher" placeholder="powershell|cmd|mshta|regsvr32|wmic|cscript">
+      </label>
+      <label>Technique hint (optional)
+        <input name="id" placeholder="pe26">
+      </label>
+      <label>Output dir
+        <input name="out" placeholder="(default out/delivery)">
+      </label>
+      <button type="submit">Emit</button>
+    </form>
+    <pre id="deliverout" class="out"></pre>
+  </section>
+
+  <!-- C2 -->
+  <section id="c2" class="tab hidden">
+    <h2>C2 / shellcode-source backends</h2>
+    <div id="c2list"></div>
+  </section>
+
+  <!-- Evasion -->
+  <section id="evasion" class="tab hidden">
+    <h2>Evasion layers</h2>
+    <p class="muted">crypto precedence: aes &gt; rc4 &gt; xor (only the winner is kept). unhook-kd supersedes unhook.</p>
+    <table id="evasiontable"><thead><tr>
+      <th>Status</th><th>Layer</th><th>Defeats</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+</main>
+
+<footer>
+  <span class="muted">local-only console · 127.0.0.1 · bearer-gated · authorize-gated · authorized red-team use</span>
+</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>
