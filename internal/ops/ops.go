@@ -389,7 +389,7 @@ func flagTypeName(f *pflag.Flag) string {
 func AddGenerateFlags(fs *pflag.FlagSet) {
 	fs.StringP("shellcode", "s", "", "raw shellcode file (msfvenom/donut/sliver/custom)")
 	fs.StringP("out", "o", "", "output directory (default ./out/<id> for implants, ./out/delivery for delivery)")
-	fs.StringP("format", "f", "exe", "output format: exe|dll|c (implant) | raw|lnk|hta|sct|vba|vbs|wsf|ps1|xsl|js|jse (delivery)")
+	fs.StringP("format", "f", "exe", "output format: exe|dll|c (implant) | raw|lnk|hta|sct|vba|vbs|wsf|ps1|xsl|js|jse|bat|psm1|zip|html|iso (delivery)")
 	fs.StringP("evasion", "e", "", "comma list of evasion layers (implant only)")
 	fs.String("aes-key", "", "hex key for aes layer (32 bytes; random if omitted)")
 	fs.String("aes-iv", "", "hex IV for aes layer (16 bytes; random if omitted; supply for reproducible builds)")

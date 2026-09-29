@@ -37,6 +37,15 @@ type Builder struct {
 	// order preserves deterministic emission.
 	funcOrder   []string
 	moduleOrder []string
+	// funcMod maps a func const name ("hVirtualProtect") to the module const
+	// name ("hKernel32Dll") that resolves it. Populated by api(); used by
+	// resolveCallG0 to wrap every wincall.CallG0(hFunc, ...) into
+	// wincall.CallG0(api(hMod, hFunc), ...). go-wincall v1.3.2's CallG0 is a
+	// raw DirectCall(funcAddr) — it does NOT resolve DJB2 hashes, so emitting a
+	// hash const as the funcAddr makes the implant jump to the hash value
+	// (unmapped) and crash with an access violation at rip=<hash>. Resolving
+	// first via the PEB walk (api()) fixes this.
+	funcMod map[string]string
 }
 
 func newBuilder(s *Spec) *Builder {
@@ -44,6 +53,7 @@ func newBuilder(s *Spec) *Builder {
 		Spec:    s,
 		funcs:   map[string]uint32{},
 		modules: map[string]uint32{},
+		funcMod: map[string]string{},
 	}
 }
 
@@ -61,6 +71,9 @@ func (b *Builder) api(moduleName, funcName string) (modConst, fnConst string) {
 		b.funcs[fc] = winhash.Hash(funcName)
 		b.funcOrder = append(b.funcOrder, fc)
 	}
+	// Record func->module so resolveCallG0 can wrap CallG0 sites that pass
+	// the hash const as the funcAddr (the v1.3.2 CallG0/direct-call bug).
+	b.funcMod[fc] = mc
 	return mc, fc
 }
 

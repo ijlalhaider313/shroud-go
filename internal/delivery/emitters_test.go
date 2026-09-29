@@ -21,7 +21,7 @@ func TestEmitterOutputShape(t *testing.T) {
 		marker   string // a string that must appear in the inline output
 	}
 	cases := []tc{
-		{"raw", "bin", false, ""},      // raw has no fetch primitive
+		{"raw", "bin", false, ""}, // raw has no fetch primitive
 		{"ps1", "ps1", true, "VirtualAlloc"},
 		{"hta", "hta", true, "WScript.Shell"},
 		{"sct", "sct", true, "WScript.Shell"},
@@ -31,7 +31,12 @@ func TestEmitterOutputShape(t *testing.T) {
 		{"jse", "jse", true, "#@~^"}, // SCRENC envelope
 		{"vbs", "vbs", true, "WScript.Shell"},
 		{"wsf", "wsf", true, "WScript.Shell"},
-		{"lnk", "lnk", true, ""},     // binary; checked via header byte 0x4C
+		{"lnk", "lnk", true, ""}, // binary; checked via header byte 0x4C
+		{"bat", "bat", true, "@echo off"},
+		{"psm1", "psm1", true, "VirtualAlloc"},
+		{"zip", "zip", true, ""},        // binary; PK\x03\x04 magic
+		{"html", "html", false, "Blob"}, // inline-only (browser can't fetch+exec)
+		{"iso", "iso", true, ""},        // binary; PVD "CD001" magic at sector 16
 	}
 
 	for _, c := range cases {
@@ -58,6 +63,14 @@ func TestEmitterOutputShape(t *testing.T) {
 			} else if c.format == "jse" {
 				if !strings.HasPrefix(string(a.Bytes), "#@~^") {
 					t.Errorf("jse: no SCRENC envelope")
+				}
+			} else if c.format == "zip" {
+				if len(a.Bytes) < 4 || string(a.Bytes[0:4]) != "PK\x03\x04" {
+					t.Errorf("zip: no PK\\x03\\x04 magic")
+				}
+			} else if c.format == "iso" {
+				if !isoHasPVD(a.Bytes) {
+					t.Errorf("iso: no PVD (CD001) at sector 16")
 				}
 			} else {
 				if c.marker != "" && !contains(string(a.Bytes), c.marker) {
@@ -95,7 +108,11 @@ func TestEmitterOutputShape(t *testing.T) {
 				if !contains(string(dec), url) {
 					t.Errorf("jse remote: url not in decoded body")
 				}
-			} else if c.format != "lnk" {
+			} else if c.format != "lnk" && c.format != "zip" && c.format != "iso" {
+				// lnk/zip/iso carry the url inside packaged/binary inner
+				// artifacts (LNK args / base64-wrapped droppers), not in
+				// plaintext at the top level — verified in their dedicated
+				// parse-back tests instead.
 				if !contains(string(a.Bytes), url) {
 					t.Errorf("remote %s: url not present in output", c.format)
 				}
@@ -107,7 +124,7 @@ func TestEmitterOutputShape(t *testing.T) {
 // TestEmitMissingPayloadErrors asserts inline emitters error when no shellcode and
 // no url is given (they can't emit anything useful).
 func TestEmitMissingPayloadErrors(t *testing.T) {
-	for _, f := range []string{"raw", "ps1", "hta", "sct", "vba", "xsl", "js", "jse", "vbs", "wsf", "lnk"} {
+	for _, f := range []string{"raw", "ps1", "hta", "sct", "vba", "xsl", "js", "jse", "vbs", "wsf", "lnk", "bat", "psm1", "zip", "html", "iso"} {
 		if _, err := emitForTest(f, &Spec{Format: f}); err == nil {
 			t.Errorf("%s: expected error for empty spec (no shellcode, no url)", f)
 		}

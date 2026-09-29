@@ -3,6 +3,76 @@
 All notable changes to shroud-go. Dates are absolute. This project follows a phase-based
 release model (see `../.claude/plans/lucky-noodling-twilight.md` for the full plan).
 
+## [Phase L] — 2026-08-12 — 5 delivery formats (bat/psm1/zip/html/iso); combine + MOTW bypass
+
+Delivery vocabulary 11 → 16. Five new emitters in `internal/delivery/`, all following the
+existing thin-emitter pattern (compose `launcherInlineCmd`/`lolbinRemote` or delegate to a
+sibling emitter — no stager duplication). `zip` and `iso` introduce a **combine** model:
+one emitter packages inner artifacts built by delegating to the `lnk` + `bat` emitters, so
+the two files in the archive always point at the same shellcode/url. Registered in
+`delivery.init()`; `IsDelivery`/`Formats()`/web `handleFormats` pick them up registry-driven
+(no dispatch changes). The Spec doc + CLI `-f` vocab + `generate` Long help updated.
+
+### Added — 5 emitters (`internal/delivery/`)
+
+- **`bat`** (`bat.go`, ~25 lines): `.bat` dropper — `@echo off` + `powershell -NoP -NoLogo
+  -w hidden -Enc <ps1InlineEnc>` (inline) or `lolbinRemote` (remote). Simplest plaintext
+  dropper; also the payload smuggled by `html` and packaged by `zip`/`iso`.
+- **`psm1`** (`psm1.go`, ~22 lines): `.psm1` PowerShell module — top-level code runs on
+  `Import-Module`; body = `ps1StagerBody` (inline) / `ps1Fetch` (remote). Same stager as
+  `-f ps1`, different trigger.
+- **`zip`** (`zip.go`, ~50 lines, combine): packages a `.lnk` + `.bat` (same shellcode/url)
+  via stdlib `archive/zip`. Inner artifacts built by `comboInner(s)` delegating to the
+  `lnk` + `bat` emitters. Phishing-bundle convenience; **no MOTW bypass** (extracted files
+  inherit Mark-of-the-Web).
+- **`html`** (`html.go`, ~60 lines): HTML smuggling page — base64-encodes the inline `.bat`
+  (delegates to `batEmitter`), JS decodes → `Blob` → auto-downloads `payload.bat`. Two
+  encoding layers (b64 of a b64-shellcode dropper); raw shellcode never in the page.
+  **Inline-only** — a browser sandbox cannot fetch+exec a remote stage-2, so `--url`
+  errors (use `bat`/`lnk`/`sct` with `--url` for remote, or smuggle a `--url` `.bat`).
+- **`iso`** (`iso.go`, ~210 lines, combine + MOTW bypass): minimal pure-Go ISO 9660 writer
+  (single-session, no Joliet/Rock Ridge, 8.3 uppercase `;1` names) packaging the same
+  `.lnk` + `.bat` via `comboInner`. Mounting an ISO on Windows does **not** propagate MOTW
+  to the mounted files → the inner `.lnk`/`.bat` run without SmartScreen friction (current
+  2022+ ISO+LNK primitive). Writer follows the ECMA-119 PVD/directory-record/path-table
+  byte layout cross-checked against `github.com/diskfs/go-diskfs` (volume space size at
+  PVD offset 80, both-endian u16/u32 fields, 10-byte single-root path table, `.`/`..`
+  records, `;1` version suffixes). Fixed dates (2026-01-01) for reproducible builds.
+
+### Tests (`internal/delivery/emitters_test.go`, `combine_test.go`)
+
+- `TestEmitterOutputShape` cases += bat/psm1/zip/html/iso (inline + remote where
+  applicable); binary magic checks (zip `PK\x03\x04`, iso PVD `CD001` at sector 16); remote
+  url-plaintext check skips zip/iso (url is inside packaged inner artifacts).
+- `TestEmitMissingPayloadErrors` list += the 5 formats.
+- `TestZipReadBack` (`combine_test.go`): reads the zip with `archive/zip`, asserts
+  `payload.lnk` (header 0x4C) + `payload.bat` (`@echo off`) present, no raw shellcode leak.
+- `TestISOParseBack` (`combine_test.go`): parses the PVD root record → walks the root
+  directory extent → verifies `PAYLOAD.LNK;1` + `PAYLOAD.BAT;1` extents match `comboInner`
+  bytes exactly, no leak.
+- `TestISO7zListsFiles` (`combine_test.go`): out-of-band — if `7z` is on PATH, `7z l` on
+  the generated ISO lists both files (runs live on this Kali; skips elsewhere).
+
+### Verified
+
+- `go build ./... && go vet ./...` green. `go test ./internal/delivery/ ./internal/web/`
+  green (all 16 emitter shape cases + zip/iso parse-back + live 7z ISO listing).
+- End-to-end CLI: `generate -f bat|psm1|zip|html|iso` (inline via `-s`, remote via
+  `--url`) emit structurally-correct artifacts; `7z l payload.iso` lists `PAYLOAD.LNK` +
+  `PAYLOAD.BAT`; `7z t` integrity OK.
+- **Pre-existing, unrelated:** `internal/payload/apis.go` + `assemble.go` carry
+  uncommitted modifications from a prior session that fail the technique-body marker tests
+  (`TestPe06/09/16/19/20/07/17/18/Body`, `TestSleepBody`, `TestEkkoSleepBody`). Confirmed
+  pre-existing: on clean HEAD (`git stash`) `./internal/payload/` passes. This phase does
+  not touch `internal/payload/`; those modifications are left as-is for their owner.
+
+### Docs
+
+- README: status line 11 → 16 formats; delivery table += bat/psm1/zip/html/iso rows;
+  new "Combine formats (`zip`, `iso`) + MOTW" note (MOTW bypass, inline-only html,
+  Windows-mount final-verification caveat).
+- CLI: `-f` vocab + `generate` Long help list the 5 new formats.
+
 ## [Phase K] — 2026-08-11 — final 7 techniques + 3 aliases: all 26 code-generated
 
 Closes the catalog. The 7 distinct techniques that were still flagged "planned/scaffold"

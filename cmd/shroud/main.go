@@ -192,9 +192,9 @@ func cmdGenerate() *cobra.Command {
 		Use:   "generate [<id>]",
 		Short: "generate a payload (implant project + build, or a delivery artifact)",
 		Long: "generate builds a Go implant for a technique id (formats exe|dll|c) or\n" +
-			"emits a delivery artifact (raw|lnk|hta|sct|vba|vbs|wsf|ps1|xsl|js|jse). The id is\n" +
-			"required for implant formats and optional for delivery formats. Gated by\n" +
-			"`shroud authorize`.",
+			"emits a delivery artifact (raw|lnk|hta|sct|vba|vbs|wsf|ps1|xsl|js|jse,\n" +
+			"bat|psm1|zip|html|iso). The id is required for implant formats and\n" +
+			"optional for delivery formats. Gated by `shroud authorize`.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: runGenerate,
 	}

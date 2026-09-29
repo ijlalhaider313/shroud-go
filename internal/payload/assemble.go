@@ -111,13 +111,41 @@ func (b *Builder) renderMain() string {
 	// main()
 	body.WriteString(b.mainFunc())
 
+	// now the maps are fully populated -> resolveCallG0 wraps every
+	// wincall.CallG0(hFunc, ...) into wincall.CallG0(api(hMod, hFunc), ...).
+	// This fixes the v1.3.2 CallG0/direct-call bug (hash const passed where a
+	// resolved funcAddr is required). See Builder.funcMod doc.
+	resolved := b.resolveCallG0(body.String())
+
 	// now the maps are fully populated -> emit the const block.
 	var out strings.Builder
 	out.WriteString(b.header())
 	out.WriteString(b.emitConsts())
 	out.WriteString(b.payloadVars())
-	out.WriteString(body.String())
+	out.WriteString(resolved)
 	return out.String()
+}
+
+// resolveCallG0 rewrites every wincall.CallG0(hFuncConst, ...) call site so the
+// DJB2 hash const is resolved to the real function address via api(moduleHash,
+// funcHash) BEFORE the direct call. go-wincall v1.3.2's CallG0 is DirectCall
+// (raw pointer, no hash resolution), so emitting `wincall.CallG0(hVirtualProtect,
+// ...)` jumps to the hash value (unmapped) and crashes. The match is anchored on
+// "wincall.CallG0(<funcConst>," (comma, no space) so a const that is a prefix of
+// another (hVirtualProtect vs hVirtualProtectEx) cannot match the wrong site,
+// and local variables (asb, ew, addr, ...) are never func consts so they are
+// never touched. api() is always emitted by commonHelpers(), so the wrapped
+// calls compile.
+func (b *Builder) resolveCallG0(src string) string {
+	for fc, mc := range b.funcMod {
+		old := "wincall.CallG0(" + fc + ","
+		if !strings.Contains(src, old) {
+			continue
+		}
+		repl := "wincall.CallG0(api(" + mc + ", " + fc + "),"
+		src = strings.ReplaceAll(src, old, repl)
+	}
+	return src
 }
 
 // header emits package + imports. The import set is the union of what the
